@@ -21,7 +21,7 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
   const token = req.header('Authorization')?.replace('Bearer ', '');
 
   if (!token) {
-    res.status(401).json({ success: false, message: 'No token provided' });
+    res.status(401).json({ success: false, message: 'User not authenticated' });
     return;
   }
 

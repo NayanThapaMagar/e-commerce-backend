@@ -13,9 +13,12 @@ export const validateRequest = (req: Request, res: Response, next: NextFunction)
 
 // User Registration Validations
 export const registerUserValidation = [
+  body('username').isString().isAlphanumeric().withMessage('username must be Alphanumeric'),
   body('email').isEmail().withMessage('Must be a valid email'),
   body('password')
     .isLength({ min: 6 })
+    // .isStrongPassword()
+    // .withMessage('Password must be at least 8 characters long, contain at least 1 uppercase letter, 1 number, and 1 symbol.'),
     .withMessage('Password must be at least 6 characters long'),
   body('role')
     .isIn(['user', 'admin'])

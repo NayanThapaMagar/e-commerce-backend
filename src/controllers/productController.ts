@@ -4,6 +4,7 @@ import cloudinary from '../config/cloudinaryConfig';
 import { deleteLocalImage } from '../utils/fileUtils';
 import mongoose from 'mongoose';
 import { getPagination } from '../utils/pagination'
+import { extractCloudinaryPublicId } from '../utils/cloudinaryUtils'
 
 // Create a product
 export const createProduct = async (req: Request, res: Response) => {
@@ -52,12 +53,12 @@ export const updateProduct = async (req: Request, res: Response) => {
         const { id } = req.params;
         const { name, description, price, stock } = req.body;
         const imageFile = req.file;
+    
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
             res.status(400).json({ message: 'Invalid Object ID' });
             return;
         }
-
 
         // Find the existing product
         const existingProduct = await Product.findById(id) as IProduct;
@@ -81,6 +82,12 @@ export const updateProduct = async (req: Request, res: Response) => {
 
         // If a new image is uploaded, update it in Cloudinary
         if (imageFile) {
+            // Delete the old image from Cloudinary
+            if (existingProduct.imageUrl) {
+                const publicId = extractCloudinaryPublicId(existingProduct.imageUrl);
+                await cloudinary.uploader.destroy(publicId);
+            }
+            
             const result = await cloudinary.uploader.upload(imageFile.path);
             updatedData.imageUrl = result.secure_url;
 
@@ -124,6 +131,13 @@ export const deleteProduct = async (req: Request, res: Response) => {
             res.status(403).json({ message: 'Not authorized to update this product' });
             return;
         }
+
+        // Delete the image from Cloudinary
+        if (existingProduct.imageUrl) {
+            const publicId = extractCloudinaryPublicId(existingProduct.imageUrl);
+            await cloudinary.uploader.destroy(publicId);
+        }
+
         const deletedProduct = await Product.findByIdAndDelete(id);
 
         if (!deletedProduct) {

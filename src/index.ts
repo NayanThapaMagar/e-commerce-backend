@@ -5,7 +5,7 @@ import orderRoutes from './routes/orderRoutes';
 import authRoutes from './routes/authRoutes';
 import { errorHandler } from './middlewares/errorHandler';
 import { apiLimiter } from './middlewares/rateLimiter';
-import connectDB from './config/databaseConfig'; 
+import connectDB from './config/databaseConfig';
 import http from 'http';
 import { Server } from 'socket.io';
 
@@ -40,6 +40,9 @@ app.use('/orders', orderRoutes(io)); // Order management routes with socket.io
 // Error handling middleware
 app.use(errorHandler);
 
+
 // Start the server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+export { server, app };
