@@ -1,16 +1,15 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
-import { IUser } from './userModel';
-import { IProduct } from './productModel';
 
 interface IOrderItem {
-  product: IProduct['_id'];
+  product: mongoose.Types.ObjectId;
   quantity: number;
 }
 
-interface IOrder extends Document {
-  user: IUser['_id']; 
+export interface IOrder extends Document {
+  _id: mongoose.Types.ObjectId; 
+  user: mongoose.Types.ObjectId; 
   items: IOrderItem[];
-  status: 'pending' | 'canceled' | 'shipped';
+  status: 'pending' | 'placed' | 'shipped' | 'canceled';
   totalPrice: number;
   createdAt: Date;
   updatedAt: Date;
@@ -27,8 +26,8 @@ const orderSchema: Schema<IOrder> = new Schema(
     ],
     status: { 
       type: String, 
-      enum: ['pending', 'canceled', 'shipped'], 
-      default: 'pending' 
+      enum: ['pending', 'placed', 'shipped', 'canceled'], 
+      default: 'placed' 
     },
     totalPrice: { type: Number, required: true, min: 0 }, 
   },

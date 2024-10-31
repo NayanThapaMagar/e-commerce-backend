@@ -6,12 +6,18 @@ import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import path from 'path';
 
+
 dotenv.config();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'testsecret';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+    throw new Error('JWT_SECRET is not defined in environment variables.');
+}
 
 const mockAdminUserId = new mongoose.Types.ObjectId();
 const mockNonAdminUserId = new mongoose.Types.ObjectId();
+const testImagePath = path.join(__dirname, '/test_image.png');
 
 // Mock admin and non-admin users
 const mockAdminUser = {
@@ -25,6 +31,17 @@ const mockNonAdminUser = {
     role: 'user',
     token: jwt.sign({ id: mockNonAdminUserId, role: 'user' }, JWT_SECRET),
 };
+
+// Mock Cloudinary and file utilities
+jest.mock('../config/cloudinaryConfig', () => ({
+    uploader: {
+        upload: jest.fn().mockResolvedValue({ secure_url: 'https://cloudinary.com/test_image.png' }),
+        destroy: jest.fn().mockResolvedValue({}),
+    },
+}));
+jest.mock('../utils/cloudinaryUtils', () => ({
+    extractCloudinaryPublicId: jest.fn().mockReturnValue('test_public_id'),
+}));
 
 // Close server and database connection after all tests
 afterAll(async () => {
@@ -43,7 +60,7 @@ describe('Product Controller', () => {
             const response = await request(app)
                 .post('/products')
                 .set('Authorization', `Bearer ${mockAdminUser.token}`)
-                .attach('image', path.join(__dirname, '/test_image.png'))
+                .attach('image', testImagePath)
                 .field('name', 'Test Product')
                 .field('description', 'This is a test product')
                 .field('price', '100')
@@ -57,7 +74,6 @@ describe('Product Controller', () => {
         it('should return 401 if user is not authenticated', async () => {
             const response = await request(app)
                 .post('/products')
-                .attach('image', path.join(__dirname, '/test_image.png'))
                 .field('name', 'Unauthorized Product')
                 .field('description', 'This should not work')
                 .field('price', '50')
@@ -71,7 +87,6 @@ describe('Product Controller', () => {
             const response = await request(app)
                 .post('/products')
                 .set('Authorization', `Bearer ${mockNonAdminUser.token}`)
-                .attach('image', path.join(__dirname, '/test_image.png'))
                 .field('name', 'Unauthorized Product')
                 .field('description', 'This should not work')
                 .field('price', '50')
@@ -100,7 +115,7 @@ describe('Product Controller', () => {
             const response = await request(app)
                 .put(`/products/${productId}`)
                 .set('Authorization', `Bearer ${mockAdminUser.token}`)
-                .attach('image', path.join(__dirname, '/test_image.png'))
+                .attach('image', testImagePath)
                 .field('name', 'Updated Product')
                 .field('description', 'Updated description')
                 .field('price', '150')
@@ -115,7 +130,6 @@ describe('Product Controller', () => {
             const response = await request(app)
                 .put(`/products/${nonExistentId}`)
                 .set('Authorization', `Bearer ${mockAdminUser.token}`)
-                .attach('image', path.join(__dirname, '/test_image.png'))
                 .field('name', 'Non-existent Product')
                 .field('description', 'This should not work')
                 .field('price', '150')
@@ -137,7 +151,6 @@ describe('Product Controller', () => {
             const response = await request(app)
                 .put(`/products/${mockProductByAnotherUser._id}`)
                 .set('Authorization', `Bearer ${mockAdminUser.token}`)
-                .attach('image', path.join(__dirname, '/test_image.png'))
                 .field('name', 'Unauthorized Update')
                 .field('description', 'Trying to update another user\'s product')
                 .field('price', '150')

@@ -4,6 +4,7 @@ import { Request, Response, NextFunction } from 'express';
 // Check for validation errors
 export const validateRequest = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
+  
   if (!errors.isEmpty()) {
     res.status(400).json({ errors: errors.array() });
     return;
@@ -21,8 +22,8 @@ export const registerUserValidation = [
     // .withMessage('Password must be at least 8 characters long, contain at least 1 uppercase letter, 1 number, and 1 symbol.'),
     .withMessage('Password must be at least 6 characters long'),
   body('role')
-    .isIn(['user', 'admin'])
-    .withMessage('Role must be either user or admin'),
+    .isIn(['user', 'admin', 'superadmin'])
+    .withMessage('Role must be either user or admin or superadmin'),
 ];
 
 // User Login Validations
@@ -41,9 +42,15 @@ export const productValidation = [
 
 // Order Validation Rules
 export const orderValidation = [
-  body('products').isArray().withMessage('Products must be an array'),
-  body('products.*.product').isMongoId().withMessage('Invalid product ID'),
-  body('products.*.quantity')
+  body('items')
+    .isArray({ min: 1 })
+    .withMessage('Items must be an array and contain at least one item'),
+
+  body('items.*.product')
+    .isMongoId()
+    .withMessage('Invalid Product ID'),
+
+  body('items.*.quantity')
     .isInt({ min: 1 })
     .withMessage('Quantity must be at least 1'),
 ];

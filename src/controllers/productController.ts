@@ -40,6 +40,7 @@ export const createProduct = async (req: Request, res: Response) => {
         });
 
         const savedProduct = await newProduct.save();
+
         res.status(201).json(savedProduct);
     } catch (error) {
         console.error('Error creating product:', error);
@@ -53,7 +54,7 @@ export const updateProduct = async (req: Request, res: Response) => {
         const { id } = req.params;
         const { name, description, price, stock } = req.body;
         const imageFile = req.file;
-    
+
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
             res.status(400).json({ message: 'Invalid Object ID' });
@@ -87,7 +88,7 @@ export const updateProduct = async (req: Request, res: Response) => {
                 const publicId = extractCloudinaryPublicId(existingProduct.imageUrl);
                 await cloudinary.uploader.destroy(publicId);
             }
-            
+
             const result = await cloudinary.uploader.upload(imageFile.path);
             updatedData.imageUrl = result.secure_url;
 
