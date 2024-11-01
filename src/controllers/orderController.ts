@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
 import Order, { IOrder } from '../models/orderModel';
 import Product from '../models/productModel';
+import { getUserSocketId, getSuperadminSocketId } from '../socket/socket';
 import { Server } from 'socket.io';
 import mongoose from 'mongoose';
+
 
 // Place an Order
 export const placeOrder = (io: Server) => async (req: Request, res: Response) => {
@@ -49,7 +51,10 @@ export const placeOrder = (io: Server) => async (req: Request, res: Response) =>
         await newOrder.save();
 
         // Notify via socket that a new order has been placed
-        io.emit('orderPlaced', { message: 'A new order has been placed', order: newOrder });
+        const superadminSocketId = await getSuperadminSocketId();
+        if (superadminSocketId) {
+            io.to(superadminSocketId).emit('orderPlaced', { message: 'A new order has been placed', order: newOrder });
+        }
 
         res.status(201).json({
             message: 'Order placed successfully',
@@ -143,43 +148,18 @@ export const updateOrder = (io: Server) => async (req: Request, res: Response) =
         await existingOrder.save();
 
         // Notify via socket about the order update
-        io.emit('orderUpdated', { message: 'Order has been updated', order: existingOrder });
+        const superadminSocketId = await getSuperadminSocketId();
+        if (superadminSocketId) {
+            io.to(superadminSocketId).emit('orderUpdated', { message: 'Order has been updated', order: existingOrder });
+        }
 
-        res.status(200).json(existingOrder);
+        res.status(200).json({ existingOrder, message: 'Order updated succesfully' });
     } catch (error) {
         console.error('Error updating order:', error);
         res.status(500).json({ message: 'Error updating order', error });
     }
 };
 
-// Get All Orders
-export const getAllOrders = async (req: Request, res: Response) => {
-    try {
-        const orders = await Order.find()
-            .populate('user')
-            .populate('items.product');
-
-        res.status(200).json(orders);
-        return;
-    } catch (error) {
-        res.status(500).json({ message: 'Error fetching orders', error });
-        return;
-    }
-};
-// Get My Orders
-export const getMyOrders = async (req: Request, res: Response) => {
-    const userId = req.user?.id;
-
-    try {
-        const myOrders = await Order.find({ user: userId })
-            .populate('items.product');
-
-        res.status(200).json(myOrders);
-    } catch (error) {
-        console.error('Error fetching user orders:', error);
-        res.status(500).json({ message: 'Error fetching user orders', error });
-    }
-};
 // Allowed status values
 const allowedStatuses = ['pending', 'placed', 'shipped'] as const;
 type OrderStatus = typeof allowedStatuses[number];
@@ -217,12 +197,17 @@ export const updateOrderStatus = (io: Server) => async (req: Request, res: Respo
         existingOrder.status = status;
         const updatedOrder = await existingOrder.save();
 
-        // Notify via socket about the order status update
-        io.emit('orderUpdated', { message: 'Order status updated', order: updatedOrder });
+        const userId = updatedOrder.user.toString()
 
-        res.status(200).json(updatedOrder);
+        // Notify via socket about the order status update
+        const userSocketId = getUserSocketId(userId); // for now assume that userId will never be undefined
+        if (userSocketId) {
+            io.to(userSocketId).emit('orderUpdated', { message: 'Order status updated', order: updatedOrder });
+        }
+
+        res.status(200).json({ updatedOrder, message: 'Order status updated' });
     } catch (error) {
-        res.status(500).json({ message: 'Error updating order', error });
+        res.status(500).json({ message: 'Error updating order status', error });
     }
 };
 
@@ -270,12 +255,44 @@ export const cancelOrder = (io: Server) => async (req: Request, res: Response) =
         }
 
         // Notify via socket that an order has been placed
-        io.emit('orderCancelled', { message: 'Order has been cancelled', order: canceledOrder });
+        const superadminSocketId = await getSuperadminSocketId();
+        if (superadminSocketId) {
+            io.to(superadminSocketId).emit('orderCancelled', { message: 'Order has been cancelled', order: canceledOrder });
+        }
 
         res.status(200).json({ message: 'Order cancelled successfully', order: canceledOrder });
         return;
     } catch (error) {
         res.status(500).json({ message: 'Error canceling order', error });
         return;
+    }
+};
+
+// Get All Orders
+export const getAllOrders = async (req: Request, res: Response) => {
+    try {
+        const orders = await Order.find()
+            .populate('user')
+            .populate('items.product');
+
+        res.status(200).json(orders);
+        return;
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching orders', error });
+        return;
+    }
+};
+// Get My Orders
+export const getMyOrders = async (req: Request, res: Response) => {
+    const userId = req.user?.id;
+
+    try {
+        const myOrders = await Order.find({ user: userId })
+            .populate('items.product');
+
+        res.status(200).json(myOrders);
+    } catch (error) {
+        console.error('Error fetching user orders:', error);
+        res.status(500).json({ message: 'Error fetching user orders', error });
     }
 };

@@ -41,7 +41,7 @@ export const createProduct = async (req: Request, res: Response) => {
 
         const savedProduct = await newProduct.save();
 
-        res.status(201).json(savedProduct);
+        res.status(201).json({ savedProduct, message: 'Product created succesfully' });
     } catch (error) {
         console.error('Error creating product:', error);
         res.status(500).json({ message: 'Error creating product', error });
@@ -98,7 +98,7 @@ export const updateProduct = async (req: Request, res: Response) => {
 
         const updatedProduct = await Product.findByIdAndUpdate(id, updatedData, { new: true, runValidators: true });
 
-        res.status(200).json(updatedProduct);
+        res.status(200).json({ updatedProduct, message: 'Product updated succesfully' });
     } catch (error) {
         console.error('Error updating product:', error);
         res.status(500).json({ message: 'Error updating product', error });
@@ -141,12 +141,8 @@ export const deleteProduct = async (req: Request, res: Response) => {
 
         const deletedProduct = await Product.findByIdAndDelete(id);
 
-        if (!deletedProduct) {
-            res.status(404).json({ message: 'Product not found' });
-            return;
-        }
 
-        res.status(200).json({ message: 'Product deleted successfully' });
+        res.status(200).json({ deletedProduct, message: 'Product deleted successfully' });
     } catch (error) {
         console.error('Error deleting product:', error);
         res.status(500).json({ message: 'Error deleting product', error });
@@ -171,7 +167,7 @@ export const getMyProducts = async (req: Request, res: Response) => {
             .limit(pageLimit);
 
         if (myProducts.length === 0) {
-            res.status(404).json({ message: 'No products found' });
+            res.status(200).json({ message: 'No products found' });
             return;
         }
 
@@ -195,7 +191,7 @@ export const getAllProducts = async (req: Request, res: Response) => {
             .limit(pageLimit);
 
         if (products.length === 0) {
-            res.status(404).json({ message: 'No products found' });
+            res.status(200).json({ message: 'No products found' });
             return;
         }
 

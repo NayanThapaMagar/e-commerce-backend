@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import path from 'path';
-
+import { MongoMemoryServer } from 'mongodb-memory-server';
 
 dotenv.config();
 
@@ -16,6 +16,7 @@ if (!JWT_SECRET) {
 }
 
 const mockAdminUserId = new mongoose.Types.ObjectId();
+const mockAdminUserId0 = new mongoose.Types.ObjectId();
 const mockNonAdminUserId = new mongoose.Types.ObjectId();
 const testImagePath = path.join(__dirname, '/test_image.png');
 
@@ -26,12 +27,23 @@ const mockAdminUser = {
     token: jwt.sign({ id: mockAdminUserId, role: 'admin' }, JWT_SECRET),
 };
 
+const mockAdminUser0 = {
+    id: mockAdminUserId0.toString(),
+    role: 'admin',
+    token: jwt.sign({ id: mockAdminUserId0, role: 'admin' }, JWT_SECRET),
+};
+
 const mockNonAdminUser = {
     id: mockNonAdminUserId.toString(),
     role: 'user',
     token: jwt.sign({ id: mockNonAdminUserId, role: 'user' }, JWT_SECRET),
 };
 
+// Mock connection to actual database
+jest.mock('../config/databaseConfig', () => ({
+    __esModule: true, // Important for default export mocks
+    default: jest.fn(), // Mock connectDB function
+}));
 // Mock Cloudinary and file utilities
 jest.mock('../config/cloudinaryConfig', () => ({
     uploader: {
@@ -43,15 +55,31 @@ jest.mock('../utils/cloudinaryUtils', () => ({
     extractCloudinaryPublicId: jest.fn().mockReturnValue('test_public_id'),
 }));
 
+let mongoServer: MongoMemoryServer;
+
+beforeAll(async () => {
+    mongoServer = await MongoMemoryServer.create();
+    const uri = mongoServer.getUri();
+    await mongoose.connect(uri);
+});
+
+afterEach(async () => {
+    // Clear collections after each test
+    const collections = mongoose.connection.collections;
+    for (const key in collections) {
+        await collections[key].deleteMany({});
+    }
+});
+
 // Close server and database connection after all tests
 afterAll(async () => {
+    await mongoose.disconnect();
+    await mongoServer.stop();
     server.close();
-    await mongoose.connection.close();
 });
 
 describe('Product Controller', () => {
     beforeEach(async () => {
-        await Product.deleteMany({});
         jest.clearAllMocks();
     });
 
@@ -67,8 +95,9 @@ describe('Product Controller', () => {
                 .field('stock', '50');
 
             expect(response.status).toBe(201);
-            expect(response.body).toHaveProperty('_id');
-            expect(response.body.name).toBe('Test Product');
+            expect(response.body.savedProduct).toHaveProperty('_id');
+            expect(response.body.savedProduct.name).toBe('Test Product');
+            expect(response.body.message).toBe('Product created succesfully');
         });
 
         it('should return 401 if user is not authenticated', async () => {
@@ -80,7 +109,7 @@ describe('Product Controller', () => {
                 .field('stock', '10');
 
             expect(response.status).toBe(401);
-            expect(response.body.message).toBe('User not authenticated');
+            expect(response.body.message).toBe('User not authenticated'); // caught in middleware
         });
 
         it('should return 403 if user is not admin', async () => {
@@ -122,7 +151,21 @@ describe('Product Controller', () => {
                 .field('stock', '50');
 
             expect(response.status).toBe(200);
-            expect(response.body.name).toBe('Updated Product');
+            expect(response.body.updatedProduct.name).toBe('Updated Product');
+            expect(response.body.message).toBe('Product updated succesfully');
+        });
+
+        it('should return 400 if product ID is invalid', async () => {
+            const response = await request(app)
+                .put('/products/invalid-id')
+                .set('Authorization', `Bearer ${mockAdminUser.token}`)
+                .field('name', 'Invalid Product')
+                .field('description', 'This should not work')
+                .field('price', '150')
+                .field('stock', '50');
+
+            expect(response.status).toBe(400);
+            expect(response.body.errors[0].msg).toBe('Invalid Object ID'); // detected in middleware validation
         });
 
         it('should return 404 if product not found', async () => {
@@ -137,6 +180,19 @@ describe('Product Controller', () => {
 
             expect(response.status).toBe(404);
             expect(response.body.message).toBe('Product not found');
+        });
+
+        it('should return 401 if user not authenticated', async () => {
+            const nonExistentId = new mongoose.Types.ObjectId().toString();
+            const response = await request(app)
+                .put(`/products/${nonExistentId}`)
+                .field('name', 'Non-existent Product')
+                .field('description', 'This should not work')
+                .field('price', '150')
+                .field('stock', '50');
+
+            expect(response.status).toBe(401);
+            expect(response.body.message).toBe('User not authenticated'); // caught in middleware
         });
 
         it('should return 403 if user is not the creator', async () => {
@@ -184,6 +240,15 @@ describe('Product Controller', () => {
             expect(response.body.message).toBe('Product deleted successfully');
         });
 
+        it('should return 400 if product ID is invalid', async () => {
+            const response = await request(app)
+                .delete('/products/invalid-id')
+                .set('Authorization', `Bearer ${mockAdminUser.token}`);
+
+            expect(response.status).toBe(400);
+            expect(response.body.errors[0].msg).toBe('Invalid Object ID'); // detected in middleware validation
+        });
+
         it('should return 404 if product not found', async () => {
             const nonExistentId = new mongoose.Types.ObjectId().toString();
             const response = await request(app)
@@ -192,6 +257,13 @@ describe('Product Controller', () => {
 
             expect(response.status).toBe(404);
             expect(response.body.message).toBe('Product not found');
+        });
+        it('should return 401 if user not authenticated', async () => {
+            const response = await request(app)
+                .delete(`/products/${productId}`)
+
+            expect(response.status).toBe(401);
+            expect(response.body.message).toBe('User not authenticated'); // caught in middleware
         });
 
         it('should return 403 if user is not the creator', async () => {
@@ -220,7 +292,7 @@ describe('Product Controller', () => {
             ]);
         });
 
-        it('should return the user’s products', async () => {
+        it("should return the user's products", async () => {
             const response = await request(app)
                 .get('/products/my-products')
                 .set('Authorization', `Bearer ${mockAdminUser.token}`);
@@ -234,7 +306,36 @@ describe('Product Controller', () => {
                 .get('/products/my-products');
 
             expect(response.status).toBe(401);
-            expect(response.body.message).toBe('User not authenticated');
+            expect(response.body.message).toBe('User not authenticated'); // caught in middleware
+        });
+        it('should return an empty array if user has no products', async () => {
+            const response = await request(app)
+                .get('/products/my-products')
+                .set('Authorization', `Bearer ${mockAdminUser0.token}`);
+
+            expect(response.status).toBe(200);
+            expect(response.body.message).toBe('No products found');
+        });
+    });
+    describe('GET /products', () => {
+        it("should return the all products", async () => {
+            await Product.create([
+                { name: 'Product 1', description: 'Description 1', createdBy: mockAdminUser.id, price: 50, stock: 20 },
+                { name: 'Product 2', description: 'Description 2', createdBy: mockAdminUser0.id, price: 100, stock: 30 },
+            ]);
+            const response = await request(app)
+                .get('/products/')
+
+            expect(response.status).toBe(200);
+            expect(response.body.length).toBe(2);
+        });
+
+        it('should return an empty array if there is no products', async () => {
+            const response = await request(app)
+                .get('/products')
+
+            expect(response.status).toBe(200);
+            expect(response.body.message).toBe('No products found');
         });
     });
 

@@ -6,6 +6,7 @@ import authRoutes from './routes/authRoutes';
 import { errorHandler } from './middlewares/errorHandler';
 import { apiLimiter } from './middlewares/rateLimiter';
 import connectDB from './config/databaseConfig';
+import { registerSocketHandlers } from './socket/socket';
 import http from 'http';
 import { Server } from 'socket.io';
 
@@ -23,14 +24,8 @@ app.use(apiLimiter); // Rate limiting middleware
 // Connect to MongoDB
 connectDB();
 
-// Socket.io connection for real-time notifications
-io.on('connection', (socket) => {
-    console.log('New client connected');
-
-    socket.on('disconnect', () => {
-        console.log('Client disconnected');
-    });
-});
+// Register socket handlers
+registerSocketHandlers(io);
 
 // Routes
 app.use('/auth', authRoutes); // Authentication routes

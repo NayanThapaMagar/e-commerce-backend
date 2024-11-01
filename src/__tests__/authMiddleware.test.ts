@@ -73,7 +73,7 @@ describe('Auth Middleware', () => {
             authenticate(req, res, mockNext);
 
             expect(res.status).toHaveBeenCalledWith(401);
-            expect(res.json).toHaveBeenCalledWith({ success: false, message: 'Invalid token' });
+            expect(res.json).toHaveBeenCalledWith({ success: false, message: 'User not authenticated' });
             expect(mockNext).not.toHaveBeenCalled();
         });
     });
