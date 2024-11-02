@@ -280,7 +280,7 @@ describe('Product Controller', () => {
                 .set('Authorization', `Bearer ${mockAdminUser.token}`);
 
             expect(response.status).toBe(403);
-            expect(response.body.message).toBe('Not authorized to update this product');
+            expect(response.body.message).toBe('Not authorized to delete this product');
         });
     });
 
