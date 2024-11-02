@@ -129,7 +129,7 @@ export const deleteProduct = async (req: Request, res: Response) => {
             return;
         }
         if (existingProduct.createdBy.toString() !== userId.toString()) {
-            res.status(403).json({ message: 'Not authorized to update this product' });
+            res.status(403).json({ message: 'Not authorized to delete this product' });
             return;
         }
 

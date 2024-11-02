@@ -4,6 +4,7 @@ import Product from '../models/productModel';
 import { getUserSocketId, getSuperadminSocketId } from '../socket/socket';
 import { Server } from 'socket.io';
 import mongoose from 'mongoose';
+import { getPagination } from '../utils/pagination';
 
 
 // Place an Order
@@ -270,10 +271,22 @@ export const cancelOrder = (io: Server) => async (req: Request, res: Response) =
 
 // Get All Orders
 export const getAllOrders = async (req: Request, res: Response) => {
+    const { page = '1', limit = '10' } = req.query as {
+        page?: number;
+        limit?: number;
+    };
     try {
+        const { offset, limit: pageLimit } = getPagination(Number(page), Number(limit));
         const orders = await Order.find()
             .populate('user')
-            .populate('items.product');
+            .populate('items.product')
+            .skip(offset)
+            .limit(pageLimit);
+
+        if (orders.length === 0) {
+            res.status(200).json({ message: 'No orders found' });
+            return;
+        }
 
         res.status(200).json(orders);
         return;
@@ -284,11 +297,22 @@ export const getAllOrders = async (req: Request, res: Response) => {
 };
 // Get My Orders
 export const getMyOrders = async (req: Request, res: Response) => {
+    const { page = '1', limit = '10' } = req.query as {
+        page?: number;
+        limit?: number;
+    };
     const userId = req.user?.id;
 
     try {
+        const { offset, limit: pageLimit } = getPagination(Number(page), Number(limit));
+        if (!userId) {
+            res.status(401).json({ message: 'User not authenticated' });
+            return;
+        }
         const myOrders = await Order.find({ user: userId })
-            .populate('items.product');
+            .populate('items.product')
+            .skip(offset)
+            .limit(pageLimit);
 
         res.status(200).json(myOrders);
     } catch (error) {
